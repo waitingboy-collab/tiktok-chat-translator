@@ -32,6 +32,7 @@
     :root:not([data-theme="light"]) { /* light theme on purpose — kept light in dark mode too */ }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
     margin: 0;
@@ -147,6 +148,7 @@
       <div>Live Chat Translator<small>Real-time translated comments for any TikTok LIVE</small></div>
     </div>
     <div class="pill" id="pill"><span class="dot"></span><span id="pillText">Idle</span></div>
+    <button class="tbtn" type="button" id="quit" hidden title="Stop the translator">Quit</button>
   </header>
 
   <form class="card controls" id="form" autocomplete="off">
@@ -551,6 +553,20 @@
   };
 
   // Start straight away when opened as /?user=name
+  // Lets the Mac app know this window is open (it quits ~30 s after the last window closes).
+  try { new EventSource('/presence'); } catch { }
+  fetch('/health', { cache: 'no-store' }).then(r => r.json()).then(h => {
+    if (!h.appMode) return;
+    const q = $('quit');
+    q.hidden = false;
+    q.onclick = async () => {
+      if (running) stop();
+      try { await fetch('/quit', { method: 'POST' }); } catch { }
+      document.body.innerHTML = '<div style="margin:30vh auto;text-align:center;font:16px system-ui;color:#6b7280">Live Chat Translator was closed. You can close this window.</div>';
+      setTimeout(() => window.close(), 400);
+    };
+  }).catch(() => { });
+
   const qUser = new URLSearchParams(location.search).get('user');
   if (qUser) { $('user').value = qUser; start(); }
 })();

@@ -13,7 +13,24 @@ Real-time translated comments for any public **TikTok LIVE**. Type the @username
 
 ---
 
-## Install on a Mac
+## Mac app (easiest — nothing to install)
+
+1. Download **[Live-Chat-Translator-mac.zip](https://github.com/waitingboy-collab/tiktok-chat-translator/releases/latest/download/Live-Chat-Translator-mac.zip)** (from [Releases](https://github.com/waitingboy-collab/tiktok-chat-translator/releases)).
+2. Double-click the ZIP. You get **Live Chat Translator.app**. Drag it to **Applications**.
+3. Double-click **Live Chat Translator**. The first time macOS blocks it because the app isn't from the App Store:
+   - Click **Done** (or **OK**), open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to "Live Chat Translator", then confirm with your password.
+   - On older macOS: right-click the app → **Open** → **Open**.
+4. The translator opens in its own window (Chrome/Edge if installed, otherwise Safari).
+
+Works on Apple Silicon (M1–M4) and Intel Macs, macOS 11 or newer. Node.js is built in.
+Close the window and the app stops by itself after ~30 seconds, or press **Quit** in the top-right corner.
+If something goes wrong, the log is in `~/Library/Logs/LiveChatTranslator.log`.
+
+---
+
+## Install on a Mac (with Node.js)
+
+Use this if you prefer to run it from the source code.
 
 ### 1. Install Node.js (once)
 
@@ -101,6 +118,14 @@ npm start
 | *"Port 3030 is already in use"* | The translator is already running in another Terminal window. Use that one, or change `PORT` in `.env`. |
 | Comments appear but aren't translated | Press **Test translation** and read the message. |
 
+## Build the Mac app yourself
+
+```bash
+bash mac/build-mac-app.sh
+```
+
+This creates `dist/Live Chat Translator.app` and `dist/Live-Chat-Translator-mac.zip` (works on macOS or Linux, needs Node.js + npm). The app bundles the official signed Node.js binaries for Apple Silicon and Intel.
+
 ## How it works
 
 - `server.js` connects to the LIVE chat with [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector) and streams the comments to the page. One connection per username is shared by all open pages.
@@ -113,7 +138,19 @@ npm start
 
 Превежда в реално време коментарите от всеки публичен **TikTok LIVE**. Пишеш @потребителя, избираш език, натискаш **Start** и всеки коментар се показва преведен в браузъра. Нищо не се пише в чата на лайва, преводите се виждат само на твоя екран.
 
-### Инсталиране на Mac
+### Приложение за Mac (най-лесно — нищо не се инсталира)
+
+1. Изтегли **[Live-Chat-Translator-mac.zip](https://github.com/waitingboy-collab/tiktok-chat-translator/releases/latest/download/Live-Chat-Translator-mac.zip)** (от [Releases](https://github.com/waitingboy-collab/tiktok-chat-translator/releases)).
+2. Кликни два пъти на ZIP файла. Получаваш **Live Chat Translator.app**. Плъзни го в **Applications**.
+3. Кликни два пъти на **Live Chat Translator**. Първия път macOS го спира, защото не е от App Store:
+   - Натисни **Done** (или **OK**), отвори **System Settings → Privacy & Security**, слез надолу и натисни **Open Anyway** до „Live Chat Translator“. Потвърди с паролата си.
+   - На по-стари macOS: десен бутон върху приложението → **Open** → **Open**.
+4. Преводачът се отваря в собствен прозорец (в Chrome/Edge, ако са инсталирани, иначе в Safari).
+
+Работи на Apple Silicon (M1–M4) и Intel Mac, macOS 11 или по-нов. Node.js е вграден.
+Затвориш ли прозореца, приложението спира само след около 30 секунди. Може и с бутона **Quit** горе вдясно.
+
+### Инсталиране на Mac (с Node.js)
 
 **1. Инсталирай Node.js (само веднъж)**
 1. Отвори **https://nodejs.org** и изтегли версията **LTS** (голямото зелено копче, „macOS Installer“).

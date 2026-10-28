@@ -17,6 +17,10 @@ const HOST = process.env.HOST || '127.0.0.1';
 const MOCK_TIKTOK = process.env.MOCK_TIKTOK === '1';
 const MOCK_TRANSLATE = process.env.MOCK_TRANSLATE === '1';
 const IDLE_CLOSE_MS = 15_000;        // disconnect from TikTok this long after the last page closes
+// APP_MODE=1 is set by the Mac app: the server quits by itself when its window is closed.
+const APP_MODE = process.env.APP_MODE === '1';
+const APP_QUIT_AFTER_CLOSE_MS = 30_000;
+const APP_QUIT_IF_NEVER_OPENED_MS = 180_000;
 const RECENT_KEEP = 30;              // comments replayed to a page that opens mid-stream
 
 /* ───────────────────────────── helpers ───────────────────────────── */
@@ -400,7 +404,25 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    if (url.pathname === '/health') return json(res, 200, { ok: true, rooms: [...rooms.keys()], mock: MOCK_TIKTOK });
+    if (url.pathname === '/health') return json(res, 200, { ok: true, rooms: [...rooms.keys()], mock: MOCK_TIKTOK, appMode: APP_MODE });
+
+    // Every open page keeps this stream open, so the Mac app knows when its window was closed.
+    if (url.pathname === '/presence') {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      res.write('retry: 2000\n\n');
+      presenceOpen(+1);
+      const ping = setInterval(() => res.write(': ping\n\n'), 15_000);
+      req.on('close', () => { clearInterval(ping); presenceOpen(-1); });
+      return;
+    }
+
+    if (url.pathname === '/quit' && req.method === 'POST') {
+      if (!APP_MODE) return json(res, 403, { ok: false });
+      json(res, 200, { ok: true });
+      console.log('  Quit from the page.');
+      setTimeout(() => process.exit(0), 300);
+      return;
+    }
 
     if (req.method === 'GET') return serveStatic(req, res, url.pathname);
     res.writeHead(405); res.end();
@@ -421,6 +443,24 @@ server.on('error', (e) => {
   }
   throw e;
 });
+
+/* ── Mac app: quit when no window is open ── */
+let presence = 0, quitTimer = null;
+function scheduleQuit(ms) {
+  if (!APP_MODE) return;
+  clearTimeout(quitTimer);
+  quitTimer = setTimeout(() => {
+    if (presence > 0) return;
+    console.log('  No open window — quitting.');
+    process.exit(0);
+  }, ms);
+}
+function presenceOpen(delta) {
+  presence = Math.max(0, presence + delta);
+  if (presence > 0) clearTimeout(quitTimer);
+  else scheduleQuit(APP_QUIT_AFTER_CLOSE_MS);
+}
+scheduleQuit(APP_QUIT_IF_NEVER_OPENED_MS);
 
 server.listen(PORT, HOST, () => {
   const url = `http://localhost:${PORT}`;
