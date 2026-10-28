@@ -1,0 +1,18 @@
+{
+  "name": "tiktok-chat-translator",
+  "version": "1.0.0",
+  "description": "Real-time translated comments for any TikTok LIVE",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "mock": "MOCK_TIKTOK=1 MOCK_TRANSLATE=1 node server.js"
+  },
+  "dependencies": {
+    "tiktok-live-connector": "^2.5.0"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

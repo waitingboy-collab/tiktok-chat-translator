@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Chat Translator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23fe2c55'/%3E%3Cpath d='M8 10h16v9H15l-5 4v-4H8z' fill='white'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --ink: #1b1d22;
+    --muted: #6b7280;
+    --faint: #9aa1ad;
+    --line: #e4e7ec;
+    --accent: #fe2c55;
+    --accent-ink: #ffffff;
+    --accent-soft: #fff0f3;
+    --teal: #0b8f99;
+    --teal-soft: #e6f6f7;
+    --ok: #13915f;
+    --ok-soft: #e7f6ef;
+    --warn: #b45309;
+    --warn-soft: #fff6e6;
+    --err: #c8233f;
+    --err-soft: #fdecef;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
+    --radius: 14px;
+    --fs: 17px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { /* light theme on purpose — kept light in dark mode too */ }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select { font: inherit; color: inherit; }
+
+  .app { max-width: 960px; margin: 0 auto; padding: 20px 16px 28px; display: flex; flex-direction: column; gap: 14px; min-height: 100%; }
+
+  /* header */
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 18px; letter-spacing: -.01em; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; }
+  .brand small { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); letter-spacing: 0; }
+  .pill { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; font-size: 13px; font-weight: 600; background: #eef0f3; color: var(--muted); white-space: nowrap; }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill.live { background: var(--ok-soft); color: var(--ok); }
+  .pill.live .dot { animation: pulse 1.6s infinite; }
+  .pill.wait { background: var(--warn-soft); color: var(--warn); }
+  .pill.err { background: var(--err-soft); color: var(--err); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  /* controls */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .controls { padding: 14px; display: grid; grid-template-columns: 1fr 220px auto; gap: 10px; align-items: end; }
+  label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .input { height: 42px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 0 12px; outline: none; transition: border-color .15s, box-shadow .15s; width: 100%; }
+  .input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
+  .at { position: relative; }
+  .at .input { padding-left: 28px; }
+  .at::before { content: "@"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--faint); font-weight: 600; pointer-events: none; }
+  select.input { appearance: none; padding-right: 32px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; cursor: pointer; }
+  .btn-main { height: 42px; padding: 0 22px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 650; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: filter .15s, transform .05s; white-space: nowrap; }
+  .btn-main:hover { filter: brightness(.95); }
+  .btn-main:active { transform: translateY(1px); }
+  .btn-main.stop { background: var(--ink); }
+
+  .notice { padding: 10px 14px; border-radius: 10px; font-size: 14px; display: none; }
+  .notice.show { display: block; }
+  .notice.warn { background: var(--warn-soft); color: var(--warn); }
+  .notice.err { background: var(--err-soft); color: var(--err); }
+  .notice.info { background: var(--teal-soft); color: #075f66; }
+
+  /* toolbar */
+  .toolbar { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; padding: 0 2px; font-size: 14px; }
+  .toggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; color: var(--ink); }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--teal); cursor: pointer; margin: 0; }
+  .spacer { flex: 1; }
+  .tbtn { height: 32px; padding: 0 11px; border: 1px solid var(--line); background: var(--card); border-radius: 8px; cursor: pointer; font-size: 13.5px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .tbtn:hover { border-color: #cfd4dc; background: #fafbfc; }
+  .tbtn:disabled { opacity: .55; cursor: default; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+  .seg button { height: 30px; min-width: 34px; border: 0; background: transparent; cursor: pointer; font-weight: 600; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button:hover { background: #fafbfc; color: var(--ink); }
+
+  /* feed */
+  .feed-wrap { position: relative; flex: 1; min-height: 360px; display: flex; }
+  .feed { flex: 1; overflow-y: auto; padding: 6px 0; max-height: calc(100vh - 290px); min-height: 360px; scroll-behavior: auto; }
+  .msg { display: grid; grid-template-columns: 36px 1fr; gap: 12px; padding: 11px 16px; border-bottom: 1px solid #f0f2f5; animation: in .18s ease-out; }
+  .msg:last-child { border-bottom: 0; }
+  @keyframes in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff; }
+  .meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .nick { font-weight: 650; color: var(--teal); font-size: 14px; }
+  .handle { color: var(--faint); }
+  .tag { font-size: 11px; font-weight: 700; letter-spacing: .03em; padding: 1px 6px; border-radius: 5px; background: #f0f2f5; color: var(--muted); }
+  .time { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .text { font-size: var(--fs); margin-top: 2px; word-wrap: break-word; overflow-wrap: anywhere; }
+  .orig { font-size: calc(var(--fs) * .8); color: var(--muted); font-style: italic; margin-top: 2px; overflow-wrap: anywhere; }
+  body.hide-orig .orig { display: none; }
+  .pending .text { color: var(--faint); }
+  .fail-note { font-size: 12.5px; color: var(--err); margin-top: 3px; }
+  .sys { padding: 8px 16px; text-align: center; font-size: 13px; color: var(--muted); }
+  .sys b { color: var(--ink); font-weight: 600; }
+  .sys.ok b { color: var(--ok); }
+  .sys.bad b { color: var(--err); }
+
+  .empty { margin: auto; text-align: center; color: var(--muted); padding: 40px 20px; max-width: 420px; }
+  .empty h2 { font-size: 18px; color: var(--ink); margin: 14px 0 6px; font-weight: 650; }
+  .empty p { margin: 4px 0; font-size: 14px; }
+  .empty .big { width: 56px; height: 56px; border-radius: 16px; background: var(--accent-soft); display: grid; place-items: center; margin: 0 auto; }
+
+  .jump { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); border: 0; border-radius: 999px; padding: 8px 14px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.18); display: none; }
+  .jump.show { display: block; }
+
+  footer { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); padding: 0 2px; }
+  footer b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  footer .right { margin-left: auto; }
+
+  @media (max-width: 680px) {
+    .app { padding: 14px 16px 20px; }
+    .controls { grid-template-columns: 1fr; }
+    .controls .btn-main { justify-content: center; }
+    .input { font-size: 16px; }   /* stops iPhone/iPad from zooming into the field */
+    .pill { margin-left: 0; }
+    .feed { max-height: none; }
+    .time { margin-left: 0; }
+    footer .right { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v11H11l-5 4v-4H4z" fill="#fff"/><path d="M8 9.5h8M8 12.5h5" stroke="#fe2c55" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <div>Live Chat Translator<small>Real-time translated comments for any TikTok LIVE</small></div>
+    </div>
+    <div class="pill" id="pill"><span class="dot"></span><span id="pillText">Idle</span></div>
+  </header>
+
+  <form class="card controls" id="form" autocomplete="off">
+    <label class="field user">TikTok username
+      <span class="at"><input class="input" id="user" placeholder="username or LIVE link" spellcheck="false"></span>
+    </label>
+    <label class="field">Translate to
+      <select class="input" id="lang"></select>
+    </label>
+    <button class="btn-main" id="go" type="submit">
+      <svg width="14" height="14" viewBox="0 0 14 14" id="goIcon"><path d="M3 1.8v10.4L12 7z" fill="currentColor"/></svg>
+      <span id="goText">Start</span>
+    </button>
+  </form>
+
+  <div class="notice" id="notice"></div>
+
+  <div class="toolbar">
+    <label class="toggle"><input type="checkbox" id="optOrig" checked> Show original</label>
+    <label class="toggle"><input type="checkbox" id="optScroll" checked> Auto-scroll</label>
+    <label class="toggle" title="Also translate comments that are already in your language"><input type="checkbox" id="optAll"> Translate all</label>
+    <span class="spacer"></span>
+    <span class="seg" title="Text size"><button type="button" id="smaller" aria-label="Smaller text">A−</button><button type="button" id="bigger" aria-label="Bigger text">A+</button></span>
+    <button class="tbtn" type="button" id="test">Test translation</button>
+    <button class="tbtn" type="button" id="export">Export .txt</button>
+    <button class="tbtn" type="button" id="clear">Clear</button>
+  </div>
+
+  <div class="card feed-wrap">
+    <div class="feed" id="feed">
+      <div class="empty" id="empty">
+        <div class="big"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v11H11l-5 4v-4H4z" stroke="#fe2c55" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+        <h2>No comments yet</h2>
+        <p>Enter a TikTok username and press <b>Start</b>.</p>
+        <p>Comments from the LIVE chat appear here, translated.</p>
+      </div>
+    </div>
+    <button class="jump" id="jump" type="button">↓ New comments</button>
+  </div>
+
+  <footer>
+    <span>Comments <b id="cTotal">0</b></span>
+    <span>Translated <b id="cDone">0</b></span>
+    <span>Failed <b id="cFail">0</b></span>
+    <span class="right" id="engine"></span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const LANGS = [
+    ['en', 'English'], ['bg', 'Bulgarian — Български'], ['ru', 'Russian — Русский'], ['tr', 'Turkish — Türkçe'],
+    ['de', 'German — Deutsch'], ['el', 'Greek — Ελληνικά'], ['ro', 'Romanian — Română'], ['uk', 'Ukrainian — Українська'],
+    ['sr', 'Serbian — Српски'], ['mk', 'Macedonian — Македонски'], ['es', 'Spanish — Español'], ['fr', 'French — Français'],
+    ['it', 'Italian — Italiano'], ['pl', 'Polish — Polski'], ['pt', 'Portuguese — Português'], ['nl', 'Dutch — Nederlands'],
+    ['ar', 'Arabic — العربية'], ['hi', 'Hindi — हिन्दी'], ['zh-CN', 'Chinese — 中文'], ['ja', 'Japanese — 日本語'], ['ko', 'Korean — 한국어'],
+  ];
+  const MAX_ITEMS = 400;        // messages kept on the page
+  const MAX_BACKLOG = 60;       // waiting translations before we skip (very fast chats)
+  const CONCURRENCY = 3;
+
+  const $ = (id) => document.getElementById(id);
+  const feed = $('feed'), empty = $('empty');
+
+  /* ── settings (per-browser convenience) ── */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('lct.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('lct.' + k, JSON.stringify(v)); } catch { } },
+  };
+
+  const langSel = $('lang');
+  for (const [code, name] of LANGS) langSel.add(new Option(name, code));
+  langSel.value = store.get('lang', 'bg');
+  if (!langSel.value) langSel.value = 'en';
+  $('user').value = store.get('user', '');
+  $('optOrig').checked = store.get('orig', true);
+  $('optScroll').checked = store.get('scroll', true);
+  $('optAll').checked = store.get('all', false);
+  let fontSize = store.get('fs', 17);
+  applyFont();
+  document.body.classList.toggle('hide-orig', !$('optOrig').checked);
+
+  /* ── state ── */
+  let es = null, running = false, currentUser = '';
+  let total = 0, done = 0, failed = 0;
+  const items = [];             // { el, user, nick, text, ts, tr, src, state }
+  const queue = [];
+  let active = 0;
+
+  /* ── helpers ── */
+  function normalizeUser(input) {
+    let s = String(input || '').trim();
+    const m = s.match(/tiktok\.com\/@([A-Za-z0-9._]+)/i);
+    if (m) return m[1];
+    s = s.replace(/^@+/, '').trim();
+    return /^[A-Za-z0-9._]{2,24}$/.test(s) ? s : null;
+  }
+  const base = (l) => String(l || '').split('-')[0].toLowerCase();
+  const sameLang = (a, b) => !!a && !!b && base(a) === base(b);
+  const hasLetters = (t) => /\p{L}/u.test(t);
+  const fmtTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  function colorFor(name) {
+    let h = 0;
+    for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+    return `hsl(${h % 360} 55% 52%)`;
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  /* ── status ── */
+  function setPill(kind, text) {
+    $('pill').className = 'pill ' + (kind || '');
+    $('pillText').textContent = text;
+  }
+  function notice(kind, text) {
+    const n = $('notice');
+    if (!text) { n.className = 'notice'; n.textContent = ''; return; }
+    n.className = 'notice show ' + kind;
+    n.textContent = text;
+  }
+
+  function onStatus(s) {
+    const u = '@' + currentUser;
+    switch (s.state) {
+      case 'connecting':
+        setPill('wait', 'Connecting…'); notice('info', `Connecting to ${u}…`); break;
+      case 'reconnecting':
+        setPill('wait', 'Reconnecting…'); notice('warn', `Lost the connection to ${u}${s.detail ? ' (' + s.detail + ')' : ''}. Reconnecting…`); break;
+      case 'live':
+        setPill('live', 'Live'); notice(null);
+        sys(`Connected to <b>${escapeHtml(u)}</b>${s.title ? ' — ' + escapeHtml(s.title) : ''}`, 'ok');
+        break;
+      case 'ended':
+        setPill('', 'Ended'); notice('warn', `The LIVE of ${u} has ended.`); sys('LIVE ended'); break;
+      case 'error': {
+        const msg = {
+          offline: `${u} is not live right now. Waiting — it will connect automatically when the LIVE starts.`,
+          not_found: `Couldn't find ${u}. Check the username.`,
+          no_room: `Couldn't find a LIVE for ${u}. Check the username and that the LIVE has started. Retrying…`,
+          restricted: `This LIVE is restricted (18+ or private) and can't be read.`,
+          rate_limit: `The free connection service is busy (rate limit). Retrying automatically in a minute…`,
+          network: `Network problem — check your internet connection. Retrying…`,
+        }[s.code] || `Couldn't connect to ${u}: ${s.detail || 'unknown error'}. Retrying…`;
+        setPill(s.code === 'offline' ? 'wait' : 'err', s.code === 'offline' ? 'Not live' : 'Error');
+        notice(s.code === 'offline' ? 'warn' : 'err', msg);
+        break;
+      }
+    }
+  }
+
+  /* ── start / stop ── */
+  function start() {
+    const user = normalizeUser($('user').value);
+    if (!user) {
+      notice('err', 'Enter a valid TikTok username, e.g. @radoslav or https://www.tiktok.com/@radoslav/live');
+      $('user').focus();
+      return;
+    }
+    currentUser = user;
+    $('user').value = user;
+    store.set('user', user);
+    running = true;
+    $('go').classList.add('stop');
+    $('goText').textContent = 'Stop';
+    $('goIcon').innerHTML = '<rect x="2.5" y="2.5" width="9" height="9" rx="1.5" fill="currentColor"/>';
+    $('user').disabled = true;
+    hideEmpty();
+    sys(`Started — <b>@${escapeHtml(user)}</b>`);
+
+    es = new EventSource('/events?user=' + encodeURIComponent(user));
+    es.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.type === 'status') onStatus(m);
+      else if (m.type === 'chat') addComment(m);
+    };
+    es.onerror = async () => {
+      if (!running) return;
+      try { await fetch('/health', { cache: 'no-store' }); setPill('wait', 'Reconnecting…'); }
+      catch { setPill('err', 'Server off'); notice('err', 'The local server is not running. Start start.bat again and keep its window open.'); }
+    };
+  }
+
+  function stop() {
+    running = false;
+    if (es) { es.close(); es = null; }
+    queue.length = 0;
+    $('go').classList.remove('stop');
+    $('goText').textContent = 'Start';
+    $('goIcon').innerHTML = '<path d="M3 1.8v10.4L12 7z" fill="currentColor"/>';
+    $('user').disabled = false;
+    setPill('', 'Stopped');
+    notice(null);
+    sys('Stopped');
+  }
+
+  $('form').addEventListener('submit', (e) => { e.preventDefault(); running ? stop() : start(); });
+
+  /* ── feed ── */
+  const seen = new Set();
+  function hideEmpty() { if (empty.parentNode) empty.remove(); }
+
+  function nearBottom() { return feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60; }
+  function afterAppend(wasNear) {
+    if ($('optScroll').checked && wasNear) { feed.scrollTop = feed.scrollHeight; $('jump').classList.remove('show'); }
+    else $('jump').classList.add('show');
+    while (feed.children.length > MAX_ITEMS) {
+      const first = feed.firstElementChild;
+      const idx = items.findIndex(i => i.el === first);
+      if (idx >= 0) items.splice(idx, 1);
+      first.remove();
+    }
+  }
+  feed.addEventListener('scroll', () => { if (nearBottom()) $('jump').classList.remove('show'); });
+  $('jump').onclick = () => { feed.scrollTop = feed.scrollHeight; $('jump').classList.remove('show'); };
+
+  function sys(html, kind) {
+    hideEmpty();
+    const wasNear = nearBottom();
+    const d = el('div', 'sys' + (kind ? ' ' + kind : ''));
+    d.innerHTML = `${html} · ${fmtTime(Date.now())}`;
+    feed.append(d);
+    afterAppend(wasNear);
+    return d;
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  function addComment(m) {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    if (seen.size > 5000) seen.clear();
+    hideEmpty();
+    total++;
+
+    const name = m.nick || m.user || 'viewer';
+    const wasNear = nearBottom();
+    const row = el('div', 'msg pending');
+    const av = el('div', 'avatar', [...name][0]?.toUpperCase() || '?');
+    av.style.background = colorFor(m.user || name);
+    const body = el('div');
+    const meta = el('div', 'meta');
+    meta.append(el('span', 'nick', name));
+    if (m.user && m.user !== name) meta.append(el('span', 'handle', '@' + m.user));
+    const tag = el('span', 'tag'); tag.hidden = true; meta.append(tag);
+    meta.append(el('span', 'time', fmtTime(m.ts)));
+    const text = el('div', 'text', m.text);
+    const orig = el('div', 'orig'); orig.hidden = true;
+    body.append(meta, text, orig);
+    row.append(av, body);
+    feed.append(row);
+
+    const item = { el: row, tag, textEl: text, origEl: orig, user: m.user, nick: name, text: m.text, ts: m.ts, tr: null, src: null, state: 'pending' };
+    items.push(item);
+    afterAppend(wasNear);
+    enqueue(item);
+    counters();
+  }
+
+  function render(item) {
+    const tl = langSel.value;
+    item.el.classList.remove('pending');
+    item.el.querySelector('.fail-note')?.remove();
+    if (item.state === 'done') {
+      const same = !$('optAll').checked && (sameLang(item.src, tl) || item.tr.toLowerCase() === item.text.toLowerCase());
+      item.tag.hidden = !item.src;
+      item.tag.textContent = item.src ? (same ? base(item.src).toUpperCase() : `${base(item.src).toUpperCase()} → ${base(tl).toUpperCase()}`) : '';
+      item.textEl.textContent = same ? item.text : item.tr;
+      item.origEl.textContent = item.text;
+      item.origEl.hidden = same;
+    } else if (item.state === 'skip') {
+      item.textEl.textContent = item.text;
+      item.origEl.hidden = true;
+      item.tag.hidden = true;
+    } else if (item.state === 'fail' || item.state === 'busy') {
+      item.textEl.textContent = item.text;
+      item.origEl.hidden = true;
+      item.el.querySelector('div:last-child').append(el('div', 'fail-note',
+        item.state === 'busy' ? 'Not translated — chat is too fast' : 'Not translated — translator didn\'t respond'));
+    }
+  }
+
+  /* ── translation queue ── */
+  function enqueue(item) {
+    if (!hasLetters(item.text)) { item.state = 'skip'; render(item); return; }
+    if (queue.length >= MAX_BACKLOG) { item.state = 'busy'; failed++; render(item); counters(); return; }
+    queue.push(item);
+    pump();
+  }
+
+  function pump() {
+    while (active < CONCURRENCY && queue.length) {
+      const item = queue.shift();
+      active++;
+      translateItem(item).finally(() => { active--; pump(); });
+    }
+  }
+
+  async function callTranslate(q, tl) {
+    const r = await fetch(`/translate?tl=${encodeURIComponent(tl)}&q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'translation failed');
+    return j;
+  }
+
+  let lastError = '';
+  async function translateItem(item) {
+    const tl = langSel.value;
+    try {
+      const r = await callTranslate(item.text, tl);
+      if (tl !== langSel.value) { queue.push(item); return; }   // language changed meanwhile
+      Object.assign(item, { tr: r.text, src: r.src, state: 'done' });
+      done++;
+      $('engine').textContent = 'Translator: ' + r.engine;
+      if (lastError) { lastError = ''; if ($('notice').classList.contains('err') && /Translation/.test($('notice').textContent)) notice(null); }
+    } catch (e) {
+      item.state = 'fail';
+      failed++;
+      lastError = e.message;
+      if (!$('notice').classList.contains('show') || /Translation/.test($('notice').textContent))
+        notice('err', 'Translation isn\'t working: ' + e.message);
+    }
+    render(item);
+    counters();
+  }
+
+  function counters() {
+    $('cTotal').textContent = total;
+    $('cDone').textContent = done;
+    $('cFail').textContent = failed;
+  }
+
+  /* ── options ── */
+  $('optOrig').onchange = () => { store.set('orig', $('optOrig').checked); document.body.classList.toggle('hide-orig', !$('optOrig').checked); };
+  $('optScroll').onchange = () => { store.set('scroll', $('optScroll').checked); if ($('optScroll').checked) feed.scrollTop = feed.scrollHeight; };
+  $('optAll').onchange = () => { store.set('all', $('optAll').checked); items.forEach(i => i.state === 'done' && render(i)); };
+
+  langSel.onchange = () => {
+    store.set('lang', langSel.value);
+    const name = langSel.options[langSel.selectedIndex].text.split(' — ')[0];
+    sys(`Translating to <b>${escapeHtml(name)}</b>`);
+    // Re-translate the most recent comments into the new language.
+    const recent = items.filter(i => i.state === 'done' || i.state === 'fail').slice(-30);
+    for (const i of recent) {
+      if (queue.includes(i)) continue;
+      if (i.state === 'done') done--; else failed--;
+      i.state = 'pending'; i.el.classList.add('pending');
+      queue.push(i);
+    }
+    counters();
+    pump();
+  };
+
+  function applyFont() {
+    fontSize = Math.max(13, Math.min(30, fontSize));
+    document.documentElement.style.setProperty('--fs', fontSize + 'px');
+    store.set('fs', fontSize);
+  }
+  $('smaller').onclick = () => { fontSize -= 2; applyFont(); };
+  $('bigger').onclick = () => { fontSize += 2; applyFont(); };
+
+  $('clear').onclick = () => {
+    items.length = 0; queue.length = 0;
+    feed.replaceChildren();
+    total = done = failed = 0; counters();
+    $('jump').classList.remove('show');
+  };
+
+  $('test').onclick = async () => {
+    const b = $('test');
+    b.disabled = true; b.textContent = 'Testing…';
+    const tl = langSel.value;
+    try {
+      const r = await callTranslate(`Hello, how are you? (${new Date().toLocaleTimeString()})`, tl);
+      sys(`Test OK via <b>${escapeHtml(r.engine)}</b>: “${escapeHtml(r.text)}”`, 'ok');
+      if (/Translation/.test($('notice').textContent)) notice(null);
+    } catch (e) {
+      sys(`Test failed: <b>${escapeHtml(e.message)}</b>`, 'bad');
+    } finally {
+      b.disabled = false; b.textContent = 'Test translation';
+    }
+  };
+
+  $('export').onclick = () => {
+    if (!items.length) { notice('warn', 'Nothing to export yet.'); return; }
+    const lines = items.map(i => {
+      const t = new Date(i.ts).toLocaleString();
+      const tr = i.state === 'done' && i.tr && i.tr !== i.text ? `  →  ${i.tr}` : '';
+      return `[${t}] ${i.nick}${i.user ? ' (@' + i.user + ')' : ''}: ${i.text}${tr}`;
+    });
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    a.href = URL.createObjectURL(blob);
+    a.download = `tiktok-${currentUser || 'live'}-${stamp}.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+
+  // Start straight away when opened as /?user=name
+  const qUser = new URLSearchParams(location.search).get('user');
+  if (qUser) { $('user').value = qUser; start(); }
+})();
+</script>
+</body>
+</html>
